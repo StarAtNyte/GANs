@@ -1,13 +1,12 @@
-import torch *
+import torch
 import torch.nn as nn
-import torch.nn.functional as F 
-import numpy as numpy
+import torch.nn.functional as F
+import numpy as np
 
-## Combining labels with the generator
 
 class Generator(nn.Module):
     def __init__(self, classes, channels, img_size, latent_dim):
-        super().__init__()
+        super(Generator, self).__init__()
         self.classes = classes
         self.channels = channels
         self.img_size = img_size
@@ -17,40 +16,40 @@ class Generator(nn.Module):
 
         self.model = nn.Sequential(
             *self._create_layer(self.latent_dim + self.classes, 128, False),
-            *self._create_layer(128,256),
+            *self._create_layer(128, 256),
             *self._create_layer(256, 512),
             *self._create_layer(512, 1024),
-            nn.Linear(1024,int(np.prod(self.img_shape))),
+            nn.Linear(1024, int(np.prod(self.img_shape))),
             nn.Tanh()
         )
 
-    def _create_layer(self, size_in, size_out, normalize= True):
+    def _create_layer(self, size_in, size_out, normalize=True):
         layers = [nn.Linear(size_in, size_out)]
         if normalize:
             layers.append(nn.BatchNorm1d(size_out))
-        layers.append(nn.LeakyReLU(0.2, inplace = True))
+        layers.append(nn.LeakyReLU(0.2, inplace=True))
         return layers
-    
-    def forward(self, noise,labels):
+
+    def forward(self, noise, labels):
         z = torch.cat((self.label_embedding(labels), noise), -1)
+        x = self.model(z)
         x = x.view(x.size(0), *self.img_shape)
         return x
 
 
-## Integrating labels into the discriminator
-
-class  Discriminator(nn.Module):
-    def __init__(self,classes, img_size, latent_dim):
-        super().__init__()
+class Discriminator(nn.Module):
+    def __init__(self, classes, channels, img_size, latent_dim):
+        super(Discriminator, self).__init__()
         self.classes = classes
         self.channels = channels
         self.img_size = img_size
         self.latent_dim = latent_dim
         self.img_shape = (self.channels, self.img_size, self.img_size)
-        self.label_embedding = nn.Embedding(self.classes,self.classes)
+        self.label_embedding = nn.Embedding(self.classes, self.classes)
         self.adv_loss = torch.nn.BCELoss()
+
         self.model = nn.Sequential(
-            *self._create_layer(self.classes+ int(np.prod(self.img_shape)), 1024, False, True),
+            *self._create_layer(self.classes + int(np.prod(self.img_shape)), 1024, False, True),
             *self._create_layer(1024, 512, True, True),
             *self._create_layer(512, 256, True, True),
             *self._create_layer(256, 128, False, False),
@@ -58,8 +57,8 @@ class  Discriminator(nn.Module):
             nn.Sigmoid()
         )
 
-    def _create_layer(self, size_in, size_out, drop_out = True, act_func=True):
-        layers = [nn.Linear(size_in , size_out)]
+    def _create_layer(self, size_in, size_out, drop_out=True, act_func=True):
+        layers = [nn.Linear(size_in, size_out)]
         if drop_out:
             layers.append(nn.Dropout(0.4))
         if act_func:
